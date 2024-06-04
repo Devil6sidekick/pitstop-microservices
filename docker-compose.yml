@@ -1,0 +1,132 @@
+version: '3'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: password
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - pitstop-net
+
+  customer-database:
+    image: mysql:5.7
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: customerdb
+    ports:
+      - "3306:3306"
+    networks:
+      - pitstop-net
+
+  vehicle-database:
+    image: mysql:5.7
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: vehicledb
+    ports:
+      - "3307:3306"
+    networks:
+      - pitstop-net
+
+  workshop-database:
+    image: mysql:5.7
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: workshopdb
+    ports:
+      - "3308:3306"
+    networks:
+      - pitstop-net
+
+  pitstop-customer:
+    build: ./pitstop-customer
+    environment:
+      DB_USER: root
+      DB_PASSWORD: rootpassword
+      DB_NAME: customerdb
+      DB_HOST: customer-database
+      MESSAGE_BUS_USERNAME: user
+      MESSAGE_BUS_PASSWORD: password
+      MESSAGE_BUS: rabbitmq
+      MESSAGE_BUS_TIMEOUT: 5000
+      SERVICE_NAME: customer-service
+      PORT: 3001
+    depends_on:
+      - rabbitmq
+      - customer-database
+    ports:
+      - "3001:3000"
+    networks:
+      - pitstop-net
+    restart: always
+  pitstop-vehicle:
+    build: ./pitstop-vehicle
+    environment:
+      DB_USER: root
+      DB_PASSWORD: rootpassword
+      DB_NAME: vehicledb
+      DB_HOST: vehicle-database
+      MESSAGE_BUS_USERNAME: user
+      MESSAGE_BUS_PASSWORD: password
+      MESSAGE_BUS: rabbitmq
+      MESSAGE_BUS_TIMEOUT: 5000
+      SERVICE_NAME: vehicle-service
+      PORT: 3002
+    depends_on:
+      - rabbitmq
+      - vehicle-database
+    ports:
+      - "3002:3000"
+    networks:
+      - pitstop-net
+    restart: always
+  pitstop-workshop:
+    build: ./pitstop-workshop-planning
+    environment:
+      DB_USER: root
+      DB_PASSWORD: rootpassword
+      DB_NAME: workshopdb
+      DB_HOST: workshop-database
+      MESSAGE_BUS_USERNAME: user
+      MESSAGE_BUS_PASSWORD: password
+      MESSAGE_BUS: rabbitmq
+      MESSAGE_BUS_TIMEOUT: 5000
+      SERVICE_NAME: workshop-service
+      PORT: 3003
+    depends_on:
+      - rabbitmq
+      - workshop-database
+    ports:
+      - "3003:3000"
+    networks:
+      - pitstop-net
+    restart: always
+  pitstop-webapp:
+    build: ./pitstop-webapp
+    ports:
+      - "8081:8080"
+    networks:
+      - pitstop-net
+
+  pitstop-express-gateway:
+    build: ./pitstop-express-gateway
+    environment:
+      CUSTOMER_URL: http://pitstop-customer:3001
+      VEHICLE_URL: http://pitstop-vehicle:3002
+      WORKSHOP_URL: http://pitstop-workshop:3003
+    depends_on:
+      - pitstop-customer
+      - pitstop-vehicle
+      - pitstop-workshop
+    ports:
+      - "8080:8080"
+    networks:
+      - pitstop-net
+
+networks:
+  pitstop-net:
+    driver: bridge
